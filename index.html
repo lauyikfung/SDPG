@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Self-Distilled Policy Gradient</title>
+    <meta
+      name="description"
+      content="Project page for Self-Distilled Policy Gradient, a framework for stable LLM reasoning post-training with verifier rewards and full-vocabulary on-policy self-distillation."
+    >
+    <link rel="stylesheet" href="styles.css">
+    <script>
+      window.MathJax = {
+        tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]] },
+        svg: { fontCache: "global" }
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  </head>
+  <body>
+    <header class="hero">
+      <nav class="nav" aria-label="Project navigation">
+        <a href="#abstract">Abstract</a>
+        <a href="#method">Method</a>
+        <a href="#analysis">Analysis</a>
+        <a href="#results">Results</a>
+        <a href="#citation">Citation</a>
+      </nav>
+
+      <div class="hero-grid">
+        <section class="hero-copy">
+          <p class="eyebrow">LLM Reasoning Post-Training</p>
+          <h1>Self-Distilled Policy Gradient</h1>
+          <p class="subtitle">
+            SDPG combines verifier-based RLVR with exact full-vocabulary on-policy
+            self-distillation, turning privileged reasoning context into dense
+            token-level supervision while preserving reward-driven exploration.
+          </p>
+
+          <div class="authors">
+            <span>Yifeng Liu*</span>
+            <span>Shiyuan Zhang*</span>
+            <span>Yifan Zhang*</span>
+            <span>Quanquan Gu†</span>
+          </div>
+          <p class="affiliation">University of California, Los Angeles · Princeton AI Laboratory</p>
+          <p class="note">* Equal contribution · † Corresponding author</p>
+
+          <div class="actions">
+            <a class="button primary" href="paper.pdf">Paper</a>
+            <a class="button" href="https://github.com/lauyikfung/SDPG">Code</a>
+          </div>
+        </section>
+
+        <section class="hero-panel" aria-label="SDPG objective overview">
+          <div class="pipeline">
+            <div class="node prompt">Prompt $x$</div>
+            <div class="node context">Privileged context $c$</div>
+            <div class="node model">Shared model $\pi_\theta$</div>
+            <div class="split">
+              <div class="node student">Student<br>$p_t=\pi_\theta(\cdot\mid x,y_{&lt;t})$</div>
+              <div class="node teacher">Teacher<br>$q_t=\pi_\theta(\cdot\mid c,x,y_{&lt;t})$</div>
+            </div>
+            <div class="objective">
+              $\mathcal L_{\mathrm{SDPG}} =
+              \mathcal L_{\mathrm{out}} +
+              \beta(k)\mathcal L_{\mathrm{OPD}}^+ +
+              \alpha\mathcal L_\mathcal K$
+            </div>
+          </div>
+        </section>
+      </div>
+    </header>
+
+    <main>
+      <section id="abstract" class="section narrow">
+        <h2>Abstract</h2>
+        <img src="figures/framework.png" alt="Framework overview" width="100%">
+        <p>
+          On-policy self-distillation, where a language model conditions on
+          privileged context to supervise its own generations, is a promising
+          source of dense supervision for sparse-reward reinforcement learning.
+          SDPG instantiates this signal as an auxiliary full-vocabulary
+          student-to-teacher reverse KL loss and combines it with group-relative
+          verifier advantages, normalized standard deviation, and reference-policy
+          KL regularization. Empirically, SDPG improves stability and performance
+          over RLVR and self-distillation baselines.
+        </p>
+      </section>
+
+      <section id="method" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Method</p>
+          <h2>Verifier rewards plus privileged self-distillation</h2>
+          <p>
+            SDPG trains one deployable policy under two views of the same model:
+            an ordinary student view that sees only the problem, and a privileged
+            teacher view that additionally sees answer-side context. The method
+            keeps the verifier as the final arbiter, while using the privileged
+            distribution to shape token-level credit assignment on useful rollouts.
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <article>
+            <span class="index">01</span>
+            <h3>Outcome policy gradient</h3>
+            <p>
+              SDPG keeps the binary verifier objective used in RLVR and computes
+              group-relative advantages over sampled responses, preserving the
+              selection pressure that helps the policy discover correct solutions.
+            </p>
+          </article>
+          <article>
+            <span class="index">02</span>
+            <h3>Full-vocabulary OPD</h3>
+            <p>
+              The same model serves as student and privileged teacher. On sampled
+              prefixes, SDPG minimizes $D_{\mathrm{KL}}(p_t\|\mathrm{SG}[q_t])$,
+              giving dense token-level guidance without a separate larger teacher.
+            </p>
+          </article>
+          <article>
+            <span class="index">03</span>
+            <h3>Policy anchor and gates</h3>
+            <p>
+              Reference-policy KL, positive-advantage gating, and a warmup-decay
+              schedule for $\beta(k)$ keep the privileged signal useful without
+              over-constraining the reasoning policy.
+            </p>
+          </article>
+        </div>
+        <br>
+        <div class="formula-card">
+          <div width="100%">
+            <h3>Local policy-gradient view</h3>
+            <p>
+              With the privileged branch detached, reverse-KL OPD has the same
+              fixed-prefix student-side gradient as a detached-sampling update
+              with a centered log teacher/student ratio advantage.
+            </p>
+          </div>
+          <div class="formula" width="100%">
+            $\nabla_\theta D_{\mathrm{KL}}(p_t\|\mathrm{SG}[q_t])
+            \;\Longleftrightarrow\;
+            \nabla_\theta\mathbb E_{a\sim p_t}
+            [-\log p_t(a)\,\mathrm{SG}(\bar D_t-\log \bar p_t(a)/\bar q_t(a))]$
+          </div>
+        </div>
+      </section>
+
+      <section id="analysis" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Objective Analysis</p>
+          <h2>What each term contributes</h2>
+          <p>
+            The SDPG loss is deliberately decomposed into sparse selection,
+            dense privileged guidance, and policy anchoring. This makes the
+            optimization behavior easier to reason about than treating
+            self-distillation as a black-box auxiliary loss.
+          </p>
+        </div>
+
+        <div class="analysis-grid">
+          <article class="formula-card">
+            <h3>1. Group-relative outcome advantage</h3>
+            <div class="math">
+              $A_{\mathrm{out}}^{(i)} =
+              \dfrac{R(x,y^{(i)})-\mu_G}{\sigma_G+\epsilon_{\mathrm{std}}}$
+            </div>
+            <p>
+              The verifier supplies sequence-level rewards. Normalizing within a
+              group keeps the update comparative: correct rollouts are promoted,
+              poor rollouts are suppressed, and uninformative groups contribute
+              little when all sampled rewards match.
+            </p>
+          </article>
+
+          <article class="formula-card">
+            <h3>2. Exact full-vocabulary OPD</h3>
+            <div class="math">
+              $\ell^{\mathrm{OPD}}_{i,t} =
+              \sum_{a\in\mathcal V}p_{i,t}(a)
+              \log\dfrac{p_{i,t}(a)}{\mathrm{SG}[q_{i,t}(a)]}$
+            </div>
+            <p>
+              Instead of distilling only the sampled token, SDPG compares the
+              full next-token distributions. This gives dense supervision over
+              every vocabulary item at a sampled reasoning prefix.
+            </p>
+          </article>
+
+          <article class="formula-card">
+            <h3>3. Positive-advantage gate</h3>
+            <div class="math">
+              $m_i=\mathbf 1[A_{\mathrm{out}}^{(i)}>0],\quad
+              \mathcal L_{\mathrm{OPD}}^+
+              =\mathbb E\left[\sum_{i,t}m_i\ell^{\mathrm{OPD}}_{i,t}\right]$
+            </div>
+            <p>
+              Privileged context can still produce plausible continuations on a
+              globally wrong trajectory. The gate applies OPD only when the
+              verifier prefers the rollout within its group.
+            </p>
+          </article>
+
+          <article class="formula-card">
+            <h3>4. Warmup-decay distillation weight</h3>
+            <div class="math">
+              $\beta(k)=\beta_{\mathrm{base}}
+              \min(1,k/T_{\mathrm{warm}})
+              \min(1,(T-k)/T_{\mathrm{decay}})$
+            </div>
+            <p>
+              Early warmup avoids trusting a noisy privileged target too soon.
+              Late decay releases the model from information that is unavailable
+              at inference after the useful signal has been internalized.
+            </p>
+          </article>
+        </div>
+
+        <div class="two-column schedule-row">
+          <div>
+            <h3>Two KL anchors used in SDPG</h3>
+            <p>
+              SDPG evaluates unnormalized KL regularization against a fixed
+              reference policy. The reverse form penalizes squared log drift,
+              while the forward form uses an inverse-ratio plus log-ratio term.
+              Both variants keep the student close enough to the reference model
+              that dense distillation does not dominate the reward objective.
+            </p>
+            <div class="equation-list">
+              <div>
+                <strong>URKL surrogate</strong>
+                <span>$\mathcal L_{\mathrm{URKL}} =
+                \mathcal L_{\mathrm{R\&D}}+
+                \alpha\,\mathbb E[\frac{1}{2}\log^2
+                \frac{\pi_\theta(y_t\mid s_t)}{\pi_{\mathrm{ref}}(y_t\mid s_t)}]$</span>
+              </div>
+              <div>
+                <strong>UFKL surrogate</strong>
+                <span>$\mathcal L_{\mathrm{UFKL}} =
+                \mathcal L_{\mathrm{R\&D}}+
+                \alpha\,\mathbb E[
+                \frac{\pi_{\mathrm{ref}}(y_t\mid s_t)}{\pi_\theta(y_t\mid s_t)}
+                +\log\frac{\pi_\theta(y_t\mid s_t)}{\pi_{\mathrm{ref}}(y_t\mid s_t)}]$</span>
+              </div>
+            </div>
+          </div>
+          <figure class="compact-figure small-figure">
+            <object data="figures/beta_schedule.png" type="image/png" aria-label="Beta schedule"></object>
+            <figcaption>
+              The distillation coefficient first warms up, then decays. This
+              makes privileged OPD strongest after initial exploration has found
+              useful trajectories, and weaker near the end of training.
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="process">
+          <h3>Training loop</h3>
+          <ol>
+            <li>Sample prompts with privileged contexts $(x,c)$ from the training set.</li>
+            <li>Generate a group of responses from the unprivileged policy $\pi_\theta(\cdot\mid x)$.</li>
+            <li>Score each response with the binary verifier and compute group-relative advantages.</li>
+            <li>For positively advantaged rollouts, compute full-vocabulary OPD against the detached privileged distribution.</li>
+            <li>Update the policy with outcome loss, gated OPD, and reference-policy KL regularization.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="results" class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Experiments</p>
+          <h2>Stable gains on mathematical reasoning</h2>
+          <p>
+            Experiments use Qwen3 models trained for 400 steps on DAPO-Math-17k
+            and evaluated on AIME2024, AIME2025, and AMC23 with pass@1 mean@32.
+          </p>
+        </div>
+
+        <div class="takeaways">
+          <article>
+            <strong>Early lift</strong>
+            <span>The accuracy gap between SDPG and GRPO opens within roughly the first 50 steps on the 4B run.</span>
+          </article>
+          <article>
+            <strong>Entropy stability</strong>
+            <span>SDPG-UFKL keeps actor entropy substantially higher, while RLSD collapses toward zero around step 250.</span>
+          </article>
+          <article>
+            <strong>Shorter reasoning</strong>
+            <span>SDPG response lengths settle between terse collapse and GRPO's more verbose outputs.</span>
+          </article>
+        </div>
+
+        <div class="results-table-wrap">
+          <table>
+            <caption>Qwen3-4B performance after 400 training steps</caption>
+            <thead>
+              <tr>
+                <th rowspan="2">Method</th>
+                <th colspan="2">AIME24</th>
+                <th colspan="2">AIME25</th>
+                <th colspan="2">AMC23</th>
+              </tr>
+              <tr>
+                <th>Last</th><th>Best</th><th>Last</th><th>Best</th><th>Last</th><th>Best</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><th>GRPO</th><td>0.280</td><td>0.316</td><td>0.242</td><td>0.279</td><td>0.714</td><td>0.739</td></tr>
+              <tr><th>RLSD</th><td>0.378</td><td>0.395</td><td>0.300</td><td>0.304</td><td>0.813</td><td>0.813</td></tr>
+              <tr class="ours"><th>SDPG-URKL</th><td>0.380</td><td>0.401</td><td>0.307</td><td>0.308</td><td>0.863</td><td>0.863</td></tr>
+              <tr class="ours"><th>SDPG-UFKL</th><td>0.380</td><td>0.408</td><td>0.327</td><td>0.335</td><td>0.858</td><td>0.870</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="figure-notes">
+          <article>
+            <h3>Experiments on Qwen3-4B</h3>
+            <p>
+              The top row tracks held-out benchmark accuracy. SDPG-URKL and
+              SDPG-UFKL stay above GRPO and RLSD for most of training on AIME24,
+              AIME25, and AMC23. The bottom row explains why: reward rises
+              quickly, entropy remains healthy, and response length does not
+              collapse.
+            </p>
+            </article>
+        </div>
+          <figure>
+            <object data="figures/main_4b.png" type="image/png" aria-label="Qwen3-4B training curves"></object>
+            <figcaption>
+              Qwen3-4B training dynamics: SDPG variants improve AIME and AMC accuracy,
+              reach reward plateaus earlier, and avoid the entropy collapse seen in RLSD.
+            </figcaption>
+          </figure>
+        <div class="figure-notes">
+          <article>
+            <h3>Experiments on Qwen3-1.7B</h3>
+            <p>
+              Smaller models make pure self-distillation more fragile. OPCD
+              degrades after step 250, while SDPG keeps the verifier objective
+              and policy anchor active, preventing the sharp response-length and
+              reward collapse seen in the self-distillation-only baseline.
+            </p>
+          </article>
+        </div>
+          <figure>
+            <object data="figures/main_1p7b.png" type="image/png" aria-label="Qwen3-1.7B training curves"></object>
+            <figcaption>
+              Qwen3-1.7B results show the same pattern: SDPG outperforms GRPO, RLSD,
+              and a pure self-distillation baseline across benchmarks.
+            </figcaption>
+          </figure>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <p class="eyebrow">Ablation</p>
+          <h2>Why the pieces matter</h2>
+        </div>
+          <div>
+            <p>
+              Removing the OPD term loses the early-training accuracy advantage
+              on AIME24 and AIME25, confirming that privileged full-vocabulary
+              distillation is the main source of fast convergence on hard tasks.
+            </p>
+            <p>
+              Removing the reference-policy KL can keep accuracy competitive, but
+              leads to shortened responses and rising entropy, indicating weaker
+              control over coherent reasoning patterns.
+            </p>
+          </div>
+                  <figure class="compact-figure">
+            <object data="figures/ablation_4b.png" type="image/png" aria-label="Qwen3-4B ablation curves"></object>
+            <figcaption>
+              Qwen3-4B ablation over OPD and KL regularization. The top row
+              shows benchmark accuracy; the bottom row shows reward, entropy,
+              and response length. Removing $\beta$ removes the dense OPD signal,
+              while removing $\alpha$ weakens the reference-policy anchor.
+            </figcaption>
+          </figure>
+      </section>
+
+      <section id="citation" class="section narrow">
+        <h2>Citation</h2>
+        <pre><code>@article{liu2026selfdistilled,
+  title  = {Self-Distilled Policy Gradient},
+  author = {Liu, Yifeng and Zhang, Shiyuan and Zhang, Yifan and Gu, Quanquan},
+  year   = {2026}
+}</code></pre>
+      </section>
+    </main>
+
+    <footer>
+      <span>Self-Distilled Policy Gradient</span>
+      <a href="paper.pdf">Paper PDF</a>
+      <a href="https://github.com/lauyikfung/SDPG">GitHub</a>
+    </footer>
+  </body>
+</html>
