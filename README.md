@@ -1,8 +1,16 @@
 # SDPG: Self-Distilled Policy Gradient
 
-### Project page: [Self-Distilled Policy Gradient](https://lauyikfung.github.io/SDPG/)
+[![arXiv](https://img.shields.io/badge/arXiv-2606.04036-b31b1b.svg)](https://arxiv.org/abs/2606.04036)
+[![Website](https://img.shields.io/badge/Project-Website-blue)](https://complex-reasoning.github.io/SDPG) 
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.6.0-orange.svg) 
 
-This repository implements SDPG and related privileged-context training methods on top of the [verl](https://github.com/volcengine/verl) RLHF framework.
+On-policy self-distillation, where a language model conditions on privileged context to supervise its own generations, is a promising source of dense supervision for sparse-reward reinforcement learning. Actually, it can be instantiated as an auxiliary full-vocabulary student-to-teacher reverse Kullback-Leibler divergence loss. We therefore propose **SDPG**, a self-distilled policy-gradient framework that combines group-relative verifier advantages with normalized standard deviation, exact full-vocabulary on-policy self-distillation, as well as reference-policy KL regularization. Empirically, SDPG improves stability and performance over RLVR and self-distillation baselines. This repository implements the paper "[Self-Distilled Policy Gradient](https://arxiv.org/abs/2606.04036)" and related privileged-context training methods on top of the [verl](https://github.com/volcengine/verl) RLHF framework.
+
+- Authors: [Yifeng Liu](https://lauyikfung.github.io)\*, [Shiyuan Zhang](https://scholar.google.com/citations?user=MpeEZ0IAAAAJ)\*, [Yifan Zhang](https://yifzhang.com)\*, [Quanquan Gu](https://web.cs.ucla.edu/~qgu/)
+
+[[Webpage](https://complex-reasoning.github.io/SDPG)] [[Huggingface](https://huggingface.co/papers/2606.04036)]
 
 ## Methods
 
@@ -150,3 +158,19 @@ Validation uses `n=32` samples per problem at `temperature=1.0`.
 | `verl/utils/dataset/rl_dataset.py` | `[TEACHER_CONTEXT_TOKEN]` splitting, `teacher_input_ids` tokenization |
 | `verl/trainer/ppo/utils.py` | `need_reference_policy()`: spawns frozen ref worker for SDPG/OPSD |
 | `verl/workers/config/actor.py` | `PolicyLossConfig`: β, α, `kl_mode`, beta schedule fields |
+
+## Acknowledgements
+
+  - [volcengine/verl: verl: Volcano Engine Reinforcement Learning for LLMs](https://github.com/volcengine/verl) for providing coding base
+
+## Citation
+
+If you use SDPG in your research or application, please consider citing it!
+
+```bibtex
+@article{liu2026self,
+      title={Self-Distilled Policy Gradient}, 
+      author={Liu, Yifeng and Zhang, Shiyuan and Zhang, Yifan and Gu, Quanquan},
+      journal={arXiv preprint arXiv:2606.04036}, 
+}
+```
