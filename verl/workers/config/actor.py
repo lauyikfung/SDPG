@@ -103,6 +103,8 @@ class PolicyLossConfig(BaseConfig):
     # SDPG distillation gating: when True, multiply the beta term by I(A_i > 0)
     # so teacher alignment only applies to positively-advantaged responses.
     beta_distill_positive_advantage_only: bool = False
+    # Drop EOS positions from the beta term to avoid softening the policy's hard stop.
+    beta_distill_exclude_eos: bool = False
     # OPSD teacher temperature: lower value makes frozen ref teacher more peaked,
     # increasing A_n for capable models where rollout already matches teacher at T=1.
     # Default 1.0 = original behavior (no change).

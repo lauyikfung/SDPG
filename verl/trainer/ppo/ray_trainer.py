@@ -1336,6 +1336,7 @@ class RayPPOTrainer:
         # Propagate step counters for SDPG beta schedule
         batch.meta_info["global_steps"] = self.global_steps
         batch.meta_info["total_training_steps"] = self.total_training_steps
+        batch.meta_info["eos_token_id"] = self.tokenizer.eos_token_id
         # update actor
         if self.use_legacy_worker_impl == "disable":
             batch_td = batch.to_tensordict()

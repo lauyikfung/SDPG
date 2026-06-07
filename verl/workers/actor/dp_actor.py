@@ -650,6 +650,10 @@ class DataParallelPPOActor(BasePPOActor):
         temperature = data.meta_info["temperature"]  # temperature must be in the data.meta_info to avoid silent error
         pad_token_id = data.meta_info.get("pad_token_id", 0)
 
+        eos_token_id = data.meta_info.get("eos_token_id")
+        stop_token_ids = eos_token_id if isinstance(eos_token_id, (list, tuple)) else [eos_token_id]
+        stop_token_ids = [t for t in stop_token_ids if t is not None]
+
         select_keys = [
             "responses",
             "response_mask",
@@ -796,6 +800,8 @@ class DataParallelPPOActor(BasePPOActor):
                             rollout_log_prob=rollout_log_prob,
                             current_step=data.meta_info.get("global_steps", 0),
                             total_steps=data.meta_info.get("total_training_steps", 0),
+                            responses=model_inputs["responses"],
+                            stop_token_ids=stop_token_ids,
                         )
                     elif is_opsd:
                         pg_loss, pg_metrics = policy_loss_fn(
