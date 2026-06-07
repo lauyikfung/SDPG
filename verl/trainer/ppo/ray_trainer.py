@@ -1328,6 +1328,20 @@ class RayPPOTrainer:
             old_log_prob_mfu = 0
         return old_log_prob, old_log_prob_mfu
 
+    def _stop_token_ids(self) -> list[int]:
+        """Stop-token ids used to exclude EOS from the SDPG distillation term.
+
+        Collects the tokenizer EOS and any generation_config EOS ids (either may be a list),
+        so models with multiple stop tokens (e.g. <|im_end|> alongside </s>) are all covered.
+        """
+        ids = []
+        for src in (getattr(self.tokenizer, "eos_token_id", None),
+                    getattr(getattr(self.tokenizer, "generation_config", None), "eos_token_id", None)):
+            if src is None:
+                continue
+            ids.extend(src if isinstance(src, (list, tuple)) else [src])
+        return list(dict.fromkeys(t for t in ids if t is not None))
+
     def _update_actor(self, batch: DataProto) -> DataProto:
         rollout_config = self.config.actor_rollout_ref.rollout
         batch.meta_info["multi_turn"] = rollout_config.multi_turn.enable
@@ -1336,6 +1350,7 @@ class RayPPOTrainer:
         # Propagate step counters for SDPG beta schedule
         batch.meta_info["global_steps"] = self.global_steps
         batch.meta_info["total_training_steps"] = self.total_training_steps
+        batch.meta_info["eos_token_id"] = self._stop_token_ids()
         # update actor
         if self.use_legacy_worker_impl == "disable":
             batch_td = batch.to_tensordict()

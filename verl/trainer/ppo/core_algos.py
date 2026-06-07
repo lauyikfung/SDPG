@@ -210,6 +210,25 @@ def _compute_effective_beta(beta: float, current_step: int, total_steps: int,
     return effective
 
 
+def mask_distill_stop_tokens(
+    kl_distill_per_token: torch.Tensor,
+    responses: torch.Tensor,
+    stop_token_ids,
+) -> torch.Tensor:
+    """Zero the per-token distillation KL wherever the response emits a stop token (EOS).
+
+    Conditioned on privileged context, the teacher keeps mass on continuation tokens at the stop
+    position, so distilling it softens the policy's hard P(EOS) and causes no-stop / repetition.
+    Only the distillation term is affected; the PG term is left untouched.
+    """
+    if not stop_token_ids:
+        return kl_distill_per_token
+    stop_mask = torch.zeros_like(responses, dtype=torch.bool)
+    for tid in stop_token_ids:
+        stop_mask |= responses.eq(tid)
+    return kl_distill_per_token.masked_fill(stop_mask, 0.0)
+
+
 @register_policy_loss("sdpg")
 def compute_sdpg_loss(
     old_log_prob: torch.Tensor,            # frozen π_old (ref model at t=0)
@@ -223,6 +242,8 @@ def compute_sdpg_loss(
     rollout_log_prob: torch.Tensor | None = None,
     current_step: int = 0,
     total_steps: int = 0,
+    responses: torch.Tensor | None = None,
+    stop_token_ids=None,
 ) -> tuple:
     """
     SDPG: Self-Distillation Policy Gradient.
@@ -274,6 +295,9 @@ def compute_sdpg_loss(
     beta_warmup_steps = config.policy_loss.get("beta_warmup_steps", 0)
     beta_decay_steps = config.policy_loss.get("beta_decay_steps", 0)
     beta = _compute_effective_beta(beta_base, current_step, total_steps, beta_warmup_steps, beta_decay_steps)
+
+    if config.policy_loss.get("beta_distill_exclude_eos", False) and responses is not None:
+        kl_distill_per_token = mask_distill_stop_tokens(kl_distill_per_token, responses, stop_token_ids)
 
     # kl_distill_per_token: (B, T), precomputed full-vocab KL, already has grad via actor logits
     beta_term = beta * kl_distill_per_token
